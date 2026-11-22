@@ -1,0 +1,2431 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="VelvetLog">
+    <meta name="theme-color" content="#0B0B0E">
+    <title>VelvetLog — Трекер тренировок и ИИ-тренер</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- PWA Манифест и иконка для добавления на экран «Домой» iPhone -->
+    <script>
+        (function() {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#A78BFA"/>
+                        <stop offset="100%" stop-color="#FDA4AF"/>
+                    </linearGradient>
+                </defs>
+                <rect width="512" height="512" rx="120" fill="#0B0B0E"/>
+                <circle cx="256" cy="256" r="154" fill="none" stroke="url(#g)" stroke-width="26"/>
+                <path d="M186 258l48 48 96-102" fill="none" stroke="#6EE7B7" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`;
+            const iconUrl = 'data:image/svg+xml;base64,' + btoa(svg);
+
+            const touchIcon = document.createElement('link');
+            touchIcon.rel = 'apple-touch-icon';
+            touchIcon.href = iconUrl;
+            document.head.appendChild(touchIcon);
+
+            const manifest = {
+                name: "VelvetLog",
+                short_name: "VelvetLog",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#0B0B0E",
+                theme_color: "#0B0B0E",
+                icons: [{ src: iconUrl, sizes: "512x512", type: "image/svg+xml" }]
+            };
+            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = URL.createObjectURL(blob);
+            document.head.appendChild(manifestLink);
+        })();
+    </script>
+
+    <style>
+        :root {
+            --bg-obsidian: #0B0B0E;
+            --bg-card: #141419;
+            --bg-elevated: #1C1C24;
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            background-color: var(--bg-obsidian);
+            color: #F4F4F6;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .tabular {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .obsidian-card {
+            background-color: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.065);
+            border-radius: 22px;
+        }
+
+        .obsidian-sub {
+            background-color: var(--bg-elevated);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+        }
+
+        .glass-header {
+            background: rgba(11, 11, 14, 0.85);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .glass-nav {
+            background: rgba(14, 14, 19, 0.9);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .btn-press {
+            transition: transform 0.13s cubic-bezier(0.2, 0, 0, 1), opacity 0.15s ease, background-color 0.15s ease;
+        }
+
+        .btn-press:active {
+            transform: scale(0.965);
+            opacity: 0.88;
+        }
+
+        .icon-btn {
+            width: 34px;
+            height: 34px;
+            min-width: 34px;
+            min-height: 34px;
+            border-radius: 11px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .safe-top { padding-top: max(12px, var(--sat)); }
+        .safe-bottom { padding-bottom: max(10px, var(--sab)); }
+        .main-bottom-pad { padding-bottom: calc(148px + var(--sab)); }
+
+        @keyframes sheetIn {
+            from { transform: translateY(100%); opacity: 0.5; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .sheet-in {
+            animation: sheetIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes pillUp {
+            from { transform: translate(-50%, 24px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .rest-pill-in {
+            animation: pillUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-[#0B0B0E] text-zinc-100 selection:bg-[#A78BFA]/30">
+
+    <!-- Всплывающие уведомления (Toast) -->
+    <div id="toast-root" class="fixed top-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-[92%] max-w-md flex flex-col gap-2 safe-top"></div>
+
+    <!-- Модальная шторка (Bottom Sheet) -->
+    <div id="modal-backdrop" class="fixed inset-0 z-50 hidden bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center">
+        <div id="modal-sheet" class="w-full max-w-lg bg-[#141419] border-t sm:border border-white/10 rounded-t-[28px] sm:rounded-[26px] p-5 max-h-[88vh] flex flex-col shadow-2xl safe-bottom sheet-in">
+            <div class="w-10 h-1 bg-zinc-700/80 rounded-full mx-auto mb-3.5 sm:hidden shrink-0"></div>
+            <div class="flex items-center justify-between gap-3 mb-4 shrink-0">
+                <h3 id="modal-title" class="text-[17px] font-semibold tracking-tight text-white truncate min-w-0">Заголовок</h3>
+                <button onclick="closeModal()" class="icon-btn text-zinc-400 hover:text-white btn-press" aria-label="Закрыть">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="modal-content" class="overflow-y-auto flex-1 space-y-3.5 pr-0.5"></div>
+        </div>
+    </div>
+
+    <!-- Плавающая капсула умного таймера отдыха -->
+    <div id="rest-timer-pill" class="hidden fixed left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-md rest-pill-in" style="bottom: calc(74px + var(--sab));">
+        <div class="bg-[#191922]/95 backdrop-blur-xl border border-[#A78BFA]/30 rounded-[20px] px-3.5 py-2.5 shadow-2xl shadow-black/60 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-2 h-2 rounded-full bg-[#A78BFA] animate-pulse shrink-0"></div>
+                <div class="min-w-0">
+                    <div class="text-[10px] font-medium text-zinc-400 leading-none">Отдых</div>
+                    <div id="rest-countdown" class="text-base font-bold text-white tabular leading-tight mt-0.5">01:30</div>
+                </div>
+            </div>
+
+            <!-- Пресеты времени -->
+            <div class="flex items-center gap-1 shrink-0">
+                <button onclick="setRestDuration(60)" data-rest-preset="60" class="rest-preset px-2 py-1 rounded-lg text-[11px] font-medium tabular bg-white/[0.05] text-zinc-300 btn-press">60с</button>
+                <button onclick="setRestDuration(90)" data-rest-preset="90" class="rest-preset px-2 py-1 rounded-lg text-[11px] font-medium tabular bg-[#A78BFA]/20 text-[#A78BFA] btn-press">90с</button>
+                <button onclick="setRestDuration(120)" data-rest-preset="120" class="rest-preset px-2 py-1 rounded-lg text-[11px] font-medium tabular bg-white/[0.05] text-zinc-300 btn-press">120с</button>
+            </div>
+
+            <!-- +15с и пропуск -->
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="addRestSeconds(15)" class="px-2.5 py-1.5 rounded-xl bg-white/[0.07] text-xs font-semibold text-zinc-200 tabular btn-press">+15с</button>
+                <button onclick="stopRestTimer()" class="w-8 h-8 rounded-xl bg-white/[0.05] text-zinc-400 hover:text-white flex items-center justify-center btn-press" aria-label="Пропустить отдых">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Главный каркас приложения -->
+    <div class="max-w-lg mx-auto min-h-screen flex flex-col">
+        <!-- Верхняя шапка -->
+        <header id="app-header" class="sticky top-0 z-30 glass-header px-4 pb-3 safe-top"></header>
+
+        <!-- Основная область -->
+        <main id="view-root" class="flex-1 px-4 pt-4 main-bottom-pad space-y-4"></main>
+
+        <!-- Нижняя панель навигации (4 вкладки) -->
+        <nav class="fixed bottom-0 left-0 right-0 z-40 glass-nav safe-bottom">
+            <div class="max-w-lg mx-auto grid grid-cols-4 h-[64px] px-2">
+                <button onclick="setTab('workout')" data-nav="workout" class="nav-btn flex flex-col items-center justify-center gap-1 text-[#A78BFA] btn-press">
+                    <svg class="w-[21px] h-[21px]" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span class="text-[10px] font-medium tracking-tight">Тренировка</span>
+                </button>
+                <button onclick="setTab('program')" data-nav="program" class="nav-btn flex flex-col items-center justify-center gap-1 text-zinc-500 btn-press">
+                    <svg class="w-[21px] h-[21px]" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    <span class="text-[10px] font-medium tracking-tight">Программа</span>
+                </button>
+                <button onclick="setTab('progress')" data-nav="progress" class="nav-btn flex flex-col items-center justify-center gap-1 text-zinc-500 btn-press">
+                    <svg class="w-[21px] h-[21px]" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span class="text-[10px] font-medium tracking-tight">Прогресс</span>
+                </button>
+                <button onclick="setTab('ai')" data-nav="ai" class="nav-btn flex flex-col items-center justify-center gap-1 text-zinc-500 btn-press">
+                    <svg class="w-[21px] h-[21px]" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg>
+                    <span class="text-[10px] font-medium tracking-tight">Тренер ИИ</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        /**
+         * ============================================================================
+         * 1. КОНФИГУРАЦИЯ МЫШЦ, ЦВЕТОВ И ЛОКАЛЬНОГО ХРАНИЛИЩА (СТРОГО ПУСТОЙ СТАРТ)
+         * ============================================================================
+         */
+        const STORAGE_KEY = 'velvetlog_v1_clean';
+
+        const MUSCLE_STYLES = {
+            'Ягодицы':  { dot: 'bg-[#FDA4AF]', badge: 'bg-[#FDA4AF]/12 text-[#FDA4AF] border-[#FDA4AF]/25' },
+            'Ноги':     { dot: 'bg-[#FDBA74]', badge: 'bg-[#FDBA74]/12 text-[#FDBA74] border-[#FDBA74]/25' },
+            'Спина':    { dot: 'bg-[#A78BFA]', badge: 'bg-[#A78BFA]/12 text-[#A78BFA] border-[#A78BFA]/25' },
+            'Грудь':    { dot: 'bg-[#6EE7B7]', badge: 'bg-[#6EE7B7]/12 text-[#6EE7B7] border-[#6EE7B7]/25' },
+            'Плечи':    { dot: 'bg-[#93C5FD]', badge: 'bg-[#93C5FD]/12 text-[#93C5FD] border-[#93C5FD]/25' },
+            'Бицепс':   { dot: 'bg-[#F9A8D4]', badge: 'bg-[#F9A8D4]/12 text-[#F9A8D4] border-[#F9A8D4]/25' },
+            'Трицепс':  { dot: 'bg-[#C4B5FD]', badge: 'bg-[#C4B5FD]/12 text-[#C4B5FD] border-[#C4B5FD]/25' },
+            'Пресс':    { dot: 'bg-[#5EEAD4]', badge: 'bg-[#5EEAD4]/12 text-[#5EEAD4] border-[#5EEAD4]/25' }
+        };
+
+        const MUSCLE_LIST = Object.keys(MUSCLE_STYLES);
+
+        function todayISO(d = new Date()) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function shiftISO(iso, days) {
+            const [y, m, d] = iso.split('-').map(Number);
+            return todayISO(new Date(y, m - 1, d + days));
+        }
+
+        // Начальное состояние — строго пустое (никаких демо-программ и фейковых логов)
+        let state = {
+            tab: 'workout',
+            selectedDayId: null, // null | 'free' | programDay.id
+            groupByMuscle: true,
+            sessionStartedAt: null,
+            programs: [],       // [{ id, name, exercises: [{ id, name, muscle, targetSets, targetReps, targetWeight }] }]
+            workouts: [],       // [{ id, date, dayId, dayName, totalVolume, durationSec, feelingNote, entries: [{ exerciseId, name, muscle, sets: [{weight, reps, done}] }] }]
+            aiData: {
+                generalComment: '',
+                dateComments: {},     // { 'YYYY-MM-DD': 'текст' }
+                exerciseComments: {}  // { 'id_or_norm_name': { label, comment } }
+            },
+            drafts: {},         // { [sessionId]: { exercises: [...], sets: { [exId]: [{ weight, reps, done }] } } }
+            calendar: {
+                year: new Date().getFullYear(),
+                month: new Date().getMonth(),
+                selectedDate: todayISO(),
+                selectedExercise: ''
+            },
+            restPreset: 90
+        };
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                state.programs = Array.isArray(parsed.programs) ? parsed.programs : [];
+                state.workouts = Array.isArray(parsed.workouts) ? parsed.workouts : [];
+                state.aiData = {
+                    generalComment: parsed.aiData?.generalComment || '',
+                    dateComments: parsed.aiData?.dateComments || {},
+                    exerciseComments: parsed.aiData?.exerciseComments || {}
+                };
+                state.drafts = parsed.drafts || {};
+                state.selectedDayId = parsed.selectedDayId || (state.programs[0]?.id || null);
+                if (typeof parsed.groupByMuscle === 'boolean') state.groupByMuscle = parsed.groupByMuscle;
+                if (parsed.restPreset) state.restPreset = parsed.restPreset;
+            } catch (e) {
+                console.error('Ошибка чтения localStorage:', e);
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    programs: state.programs,
+                    workouts: state.workouts,
+                    aiData: state.aiData,
+                    drafts: state.drafts,
+                    selectedDayId: state.selectedDayId,
+                    groupByMuscle: state.groupByMuscle,
+                    restPreset: state.restPreset
+                }));
+            } catch (e) {
+                toast('Не удалось сохранить данные в память', 'error');
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 2. ТАЙМЕР ТРЕНИРОВКИ, УМНЫЙ ТАЙМЕР ОТДЫХА + WEB AUDIO API СИГНАЛ
+         * ============================================================================
+         */
+        let sessionTimerInterval = null;
+        let restTimerInterval = null;
+        let restRemainingSec = 0;
+
+        function ensureSessionTimer() {
+            if (!state.sessionStartedAt) state.sessionStartedAt = Date.now();
+            if (!sessionTimerInterval) {
+                sessionTimerInterval = setInterval(() => {
+                    const el = document.getElementById('header-elapsed');
+                    if (el && state.sessionStartedAt) {
+                        el.textContent = formatDuration(Math.floor((Date.now() - state.sessionStartedAt) / 1000));
+                    }
+                }, 1000);
+            }
+        }
+
+        function formatDuration(sec) {
+            const h = Math.floor(sec / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const s = sec % 60;
+            if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function playGentleChime() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const now = ctx.currentTime;
+
+                [523.25, 659.25].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.14);
+
+                    gain.gain.setValueAtTime(0.001, now + i * 0.14);
+                    gain.gain.exponentialRampToValueAtTime(0.12, now + i * 0.14 + 0.03);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.14 + 0.55);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + i * 0.14);
+                    osc.stop(now + i * 0.14 + 0.6);
+                });
+            } catch (e) {
+                // Игнорируем ограничения автовоспроизведения звука, если есть
+            }
+            if (navigator.vibrate) {
+                try { navigator.vibrate([120, 60, 120]); } catch (e) {}
+            }
+        }
+
+        function startRestTimer(seconds = state.restPreset) {
+            restRemainingSec = seconds;
+            updateRestPillUI();
+            const pill = document.getElementById('rest-timer-pill');
+            pill.classList.remove('hidden');
+
+            clearInterval(restTimerInterval);
+            restTimerInterval = setInterval(() => {
+                restRemainingSec--;
+                if (restRemainingSec <= 0) {
+                    stopRestTimer();
+                    playGentleChime();
+                    toast('Отдых завершён — можно делать следующий подход');
+                } else {
+                    updateRestPillUI();
+                }
+            }, 1000);
+        }
+
+        function setRestDuration(sec) {
+            state.restPreset = sec;
+            saveState();
+            startRestTimer(sec);
+        }
+
+        function addRestSeconds(sec) {
+            restRemainingSec += sec;
+            updateRestPillUI();
+        }
+
+        function stopRestTimer() {
+            clearInterval(restTimerInterval);
+            restTimerInterval = null;
+            restRemainingSec = 0;
+            const pill = document.getElementById('rest-timer-pill');
+            if (pill) pill.classList.add('hidden');
+        }
+
+        function updateRestPillUI() {
+            const el = document.getElementById('rest-countdown');
+            if (el) el.textContent = formatDuration(Math.max(0, restRemainingSec));
+            document.querySelectorAll('.rest-preset').forEach(btn => {
+                const isCur = Number(btn.dataset.restPreset) === state.restPreset;
+                btn.className = `rest-preset px-2 py-1 rounded-lg text-[11px] font-medium tabular btn-press ${
+                    isCur ? 'bg-[#A78BFA]/20 text-[#A78BFA]' : 'bg-white/[0.05] text-zinc-400'
+                }`;
+            });
+        }
+
+        /**
+         * ============================================================================
+         * 3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ UI
+         * ============================================================================
+         */
+        function toast(msg, type = 'ok') {
+            const root = document.getElementById('toast-root');
+            const el = document.createElement('div');
+            const style = type === 'error'
+                ? 'bg-rose-950/95 border-[#FDA4AF]/30 text-[#FDA4AF]'
+                : 'bg-[#1C1C24]/95 border-[#A78BFA]/25 text-zinc-100';
+            el.className = `px-4 py-3 rounded-2xl border ${style} shadow-2xl backdrop-blur-xl text-xs font-medium transition-all duration-300 opacity-0 -translate-y-2 break-words`;
+            el.textContent = msg;
+            root.appendChild(el);
+            requestAnimationFrame(() => el.classList.remove('opacity-0', '-translate-y-2'));
+            setTimeout(() => {
+                el.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => el.remove(), 260);
+            }, 2800);
+        }
+
+        function openModal(title, html) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-content').innerHTML = html;
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+        }
+
+        document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+            if (e.target.id === 'modal-backdrop') closeModal();
+        });
+
+        function copyToClipboard(text, successMsg = 'Скопировано в буфер обмена') {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text)
+                    .then(() => toast(successMsg))
+                    .catch(() => fallbackCopy(text, successMsg));
+            } else {
+                fallbackCopy(text, successMsg);
+            }
+        }
+
+        function fallbackCopy(text, successMsg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+                toast(successMsg);
+            } catch (e) {
+                toast('Не удалось скопировать', 'error');
+            }
+            document.body.removeChild(ta);
+        }
+
+        function esc(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function normKey(str) {
+            return String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        }
+
+        function fmtNum(n) {
+            return Math.round(n || 0).toLocaleString('ru-RU');
+        }
+
+        function fmtDateHuman(iso) {
+            if (!iso) return '';
+            const [y, m, d] = iso.split('-').map(Number);
+            const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+            const now = todayISO();
+            if (iso === now) return `Сегодня, ${d} ${months[m - 1]}`;
+            if (iso === shiftISO(now, -1)) return `Вчера, ${d} ${months[m - 1]}`;
+            return `${d} ${months[m - 1]} ${y}`;
+        }
+
+        function getLastPerformance(exName) {
+            const key = normKey(exName);
+            const sorted = [...state.workouts].sort((a, b) => b.date.localeCompare(a.date));
+            for (const w of sorted) {
+                const found = w.entries.find(e => normKey(e.name) === key);
+                if (found && Array.isArray(found.sets) && found.sets.length > 0) {
+                    return { date: w.date, sets: found.sets };
+                }
+            }
+            return null;
+        }
+
+        function getAiTipForExercise(ex) {
+            if (ex.id && state.aiData.exerciseComments[ex.id]) {
+                return state.aiData.exerciseComments[ex.id].comment;
+            }
+            const k = normKey(ex.name);
+            if (state.aiData.exerciseComments[k]) {
+                return state.aiData.exerciseComments[k].comment;
+            }
+            return '';
+        }
+
+        function getStartOfWeekISO(iso) {
+            const [y, m, d] = iso.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const day = (date.getDay() + 6) % 7; // Пн = 0
+            date.setDate(date.getDate() - day);
+            return todayISO(date);
+        }
+
+        /**
+         * ============================================================================
+         * 4. НАВИГАЦИЯ ПО ВКЛАДКАМ
+         * ============================================================================
+         */
+        function setTab(tab) {
+            state.tab = tab;
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                const active = btn.dataset.nav === tab;
+                btn.classList.toggle('text-[#A78BFA]', active);
+                btn.classList.toggle('text-zinc-500', !active);
+            });
+            render();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function render() {
+            const header = document.getElementById('app-header');
+            const root = document.getElementById('view-root');
+
+            if (state.tab === 'workout') {
+                const hasActiveSession = state.programs.length > 0 || state.selectedDayId === 'free';
+                if (!hasActiveSession) {
+                    header.innerHTML = `
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <h1 class="text-xl font-bold tracking-tight text-white">VelvetLog</h1>
+                                <p class="text-xs text-zinc-500 mt-0.5">Ваш персональный дневник тренировок</p>
+                            </div>
+                        </div>
+                    `;
+                    root.innerHTML = renderOnboarding();
+                } else {
+                    renderActiveWorkoutView(header, root);
+                }
+            } else if (state.tab === 'program') {
+                header.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <h1 class="text-xl font-bold tracking-tight text-white">Программа</h1>
+                            <p class="text-xs text-zinc-500 mt-0.5 truncate">${state.programs.length ? `Тренировочных дней: ${state.programs.length}` : 'Создайте или загрузите план'}</p>
+                        </div>
+                        <button onclick="openDayModal()" class="px-3.5 py-2 rounded-xl bg-[#A78BFA] text-[#0B0B0E] text-xs font-semibold shrink-0 btn-press">
+                            + Новый день
+                        </button>
+                    </div>
+                `;
+                root.innerHTML = renderProgramTab();
+            } else if (state.tab === 'progress') {
+                header.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <h1 class="text-xl font-bold tracking-tight text-white">Прогресс</h1>
+                            <p class="text-xs text-zinc-500 mt-0.5">Календарь и объём нагрузки</p>
+                        </div>
+                        <button onclick="jumpCalendarToday()" class="px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/[0.08] text-xs font-medium text-zinc-300 shrink-0 btn-press">
+                            Сегодня
+                        </button>
+                    </div>
+                `;
+                root.innerHTML = renderProgressTab();
+            } else if (state.tab === 'ai') {
+                header.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <h1 class="text-xl font-bold tracking-tight text-white">Тренер ИИ</h1>
+                            <p class="text-xs text-zinc-500 mt-0.5">Синхронизация и советы нейросети</p>
+                        </div>
+                    </div>
+                `;
+                root.innerHTML = renderAiTab();
+            }
+        }
+
+        /**
+         * ============================================================================
+         * 5. ОНБОРДИНГ (ПУСТОЙ СТАРТ БЕЗ ДЕМО-ДАННЫХ)
+         * ============================================================================
+         */
+        function renderOnboarding() {
+            return `
+                <div class="pt-2 space-y-3.5">
+                    <div class="obsidian-card p-5 space-y-2">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#A78BFA]/12 border border-[#A78BFA]/25 text-[11px] font-medium text-[#A78BFA]">
+                            <span>✦ Готово к первой тренировке</span>
+                        </div>
+                        <h2 class="text-lg font-semibold text-white tracking-tight pt-1">С чего начнём сегодня?</h2>
+                        <p class="text-xs text-zinc-400 leading-relaxed">
+                            База сейчас чистая. Выберите удобный способ старта — вы всегда сможете менять программу и обмениваться отчётами с нейросетью.
+                        </p>
+                    </div>
+
+                    <!-- Карточка 1: Загрузить план от нейросети -->
+                    <div class="obsidian-card p-4 space-y-3 border-[#A78BFA]/20">
+                        <button onclick="openJsonImportModal()" class="w-full text-left flex items-start gap-3.5 btn-press">
+                            <div class="w-11 h-11 rounded-2xl bg-[#A78BFA]/15 border border-[#A78BFA]/25 flex items-center justify-center text-[#A78BFA] shrink-0 mt-0.5">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-semibold text-white">Загрузить план от нейросети</div>
+                                <p class="text-xs text-zinc-400 leading-relaxed mt-0.5">
+                                    Вставьте готовый JSON-план из чата с ИИ или загрузите файл с телефона.
+                                </p>
+                            </div>
+                        </button>
+                        <div class="pt-2 border-t border-white/[0.06]">
+                            <button onclick="copyStarterProgramPrompt()" class="w-full py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] text-[11px] font-medium text-[#A78BFA] flex items-center justify-center gap-1.5 btn-press">
+                                <span>Скопировать запрос для ИИ, чтобы составить программу</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Карточка 2: Создать свою программу -->
+                    <button onclick="openDayModal()" class="w-full obsidian-card p-4 text-left flex items-start gap-3.5 btn-press">
+                        <div class="w-11 h-11 rounded-2xl bg-[#6EE7B7]/12 border border-[#6EE7B7]/25 flex items-center justify-center text-[#6EE7B7] shrink-0 mt-0.5">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-semibold text-white">Создать свою программу</div>
+                            <p class="text-xs text-zinc-400 leading-relaxed mt-0.5">
+                                Добавьте тренировочные дни (например, «Ягодицы и ноги», «Спина и плечи») и нужные упражнения.
+                            </p>
+                        </div>
+                    </button>
+
+                    <!-- Карточка 3: Начать свободную тренировку -->
+                    <button onclick="startFreeSession()" class="w-full obsidian-card p-4 text-left flex items-start gap-3.5 btn-press">
+                        <div class="w-11 h-11 rounded-2xl bg-[#FDBA74]/12 border border-[#FDBA74]/25 flex items-center justify-center text-[#FDBA74] shrink-0 mt-0.5">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-semibold text-white">Начать свободную тренировку</div>
+                            <p class="text-xs text-zinc-400 leading-relaxed mt-0.5">
+                                Записывайте упражнения и подходы прямо по ходу занятия в зале.
+                            </p>
+                        </div>
+                    </button>
+                </div>
+            `;
+        }
+
+        /**
+         * ============================================================================
+         * 6. ВКЛАДКА 1: АКТИВНАЯ ТРЕНИРОВКА В ЗАЛЕ
+         * ============================================================================
+         */
+        function ensureSessionDraft(sessionId, programExercises = []) {
+            if (!state.drafts[sessionId]) {
+                state.drafts[sessionId] = {
+                    exercises: JSON.parse(JSON.stringify(programExercises)),
+                    sets: {}
+                };
+            }
+            const draft = state.drafts[sessionId];
+            draft.exercises.forEach(ex => {
+                if (!draft.sets[ex.id]) {
+                    const last = getLastPerformance(ex.name);
+                    if (last) {
+                        draft.sets[ex.id] = last.sets.map(s => ({
+                            weight: '',
+                            reps: '',
+                            placeholderWeight: ex.targetWeight || s.weight || '0',
+                            placeholderReps: s.reps || ex.targetReps || '10',
+                            done: false
+                        }));
+                    } else {
+                        const count = Math.max(1, parseInt(ex.targetSets) || 3);
+                        const pReps = String(ex.targetReps || 10);
+                        const pWeight = ex.targetWeight ? String(ex.targetWeight) : '0';
+                        draft.sets[ex.id] = Array.from({ length: count }, () => ({
+                            weight: '',
+                            reps: '',
+                            placeholderWeight: pWeight,
+                            placeholderReps: pReps,
+                            done: false
+                        }));
+                    }
+                }
+            });
+            return draft;
+        }
+
+        function getEffectiveSetValues(s) {
+            const w = s.weight !== '' && s.weight !== undefined
+                ? parseFloat(s.weight) || 0
+                : parseFloat(s.placeholderWeight) || 0;
+            const r = s.reps !== '' && s.reps !== undefined
+                ? parseInt(s.reps) || 0
+                : parseInt(s.placeholderReps) || 0;
+            return { w, r };
+        }
+
+        function renderActiveWorkoutView(header, root) {
+            ensureSessionTimer();
+
+            let activeProg = null;
+            if (state.selectedDayId !== 'free') {
+                activeProg = state.programs.find(p => p.id === state.selectedDayId) || state.programs[0];
+                if (activeProg) state.selectedDayId = activeProg.id;
+            }
+
+            const sessionId = activeProg ? activeProg.id : 'free';
+            const sessionName = activeProg ? activeProg.name : 'Свободная тренировка';
+            const draft = ensureSessionDraft(sessionId, activeProg ? activeProg.exercises : []);
+
+            // Подсчет текущего тоннажа и выполненных подходов
+            let liveVolume = 0;
+            let doneSets = 0;
+            let totalSets = 0;
+
+            draft.exercises.forEach(ex => {
+                (draft.sets[ex.id] || []).forEach(s => {
+                    totalSets++;
+                    if (s.done) {
+                        doneSets++;
+                        const { w, r } = getEffectiveSetValues(s);
+                        liveVolume += w * r;
+                    }
+                });
+            });
+
+            const elapsedText = state.sessionStartedAt
+                ? formatDuration(Math.floor((Date.now() - state.sessionStartedAt) / 1000))
+                : '00:00';
+
+            // Верхняя панель с кнопками "Сбросить" и "Завершить"
+            header.innerHTML = `
+                <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white truncate">${esc(sessionName)}</h1>
+                        <div class="flex items-center gap-2 text-[11px] text-zinc-400 tabular mt-0.5">
+                            <span id="header-elapsed" class="text-[#6EE7B7] font-medium">${elapsedText}</span>
+                            <span>·</span>
+                            <span class="text-white font-semibold">${fmtNum(liveVolume)} кг</span>
+                            <span>·</span>
+                            <span>${doneSets}/${totalSets} подх.</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button onclick="askResetSession('${sessionId}')" class="px-2.5 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-xs font-medium text-zinc-300 btn-press">
+                            Сбросить
+                        </button>
+                        <button onclick="openFinishModal('${sessionId}', '${esc(sessionName)}')" class="px-3.5 py-2 rounded-xl bg-[#6EE7B7] text-[#0B0B0E] text-xs font-semibold shadow-sm shadow-[#6EE7B7]/20 btn-press">
+                            Завершить
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Переключатель дней программы + тумблер "По мышцам / По порядку"
+            const dayPills = state.programs.map(p => {
+                const active = sessionId === p.id;
+                return `
+                    <button onclick="selectWorkoutSession('${p.id}')"
+                        class="shrink-0 px-3.5 py-2 rounded-[13px] text-xs font-medium transition-all btn-press ${
+                            active
+                            ? 'bg-[#A78BFA] text-[#0B0B0E] font-semibold'
+                            : 'bg-[#141419] text-zinc-400 border border-white/[0.07]'
+                        }">
+                        ${esc(p.name)}
+                    </button>
+                `;
+            }).join('');
+
+            const freePill = `
+                <button onclick="startFreeSession()"
+                    class="shrink-0 px-3.5 py-2 rounded-[13px] text-xs font-medium transition-all btn-press ${
+                        sessionId === 'free'
+                        ? 'bg-[#A78BFA] text-[#0B0B0E] font-semibold'
+                        : 'bg-[#141419] text-zinc-400 border border-white/[0.07]'
+                    }">
+                    Свободная
+                </button>
+            `;
+
+            // Совет ИИ на сегодня, если есть
+            const todayNote = state.aiData.dateComments[todayISO()];
+            const todayNoteHtml = todayNote ? `
+                <div class="p-3.5 rounded-[18px] bg-[#A78BFA]/10 border border-[#A78BFA]/25 space-y-1">
+                    <div class="text-[11px] font-semibold text-[#A78BFA]">✦ Рекомендация тренера ИИ на сегодня</div>
+                    <p class="text-xs text-zinc-200 leading-relaxed break-words">${esc(todayNote)}</p>
+                </div>
+            ` : '';
+
+            // Карточки упражнений
+            let exercisesHtml = '';
+            if (draft.exercises.length === 0) {
+                exercisesHtml = `
+                    <div class="obsidian-card p-6 text-center space-y-3">
+                        <p class="text-xs text-zinc-400">В этой тренировке пока нет упражнений</p>
+                        <button onclick="openAddSessionExerciseModal('${sessionId}')" class="px-4 py-2.5 rounded-xl bg-[#A78BFA] text-[#0B0B0E] text-xs font-semibold btn-press">
+                            + Добавить упражнение
+                        </button>
+                    </div>
+                `;
+            } else if (state.groupByMuscle) {
+                const grouped = {};
+                draft.exercises.forEach((ex, idx) => {
+                    const m = ex.muscle || 'Ягодицы';
+                    if (!grouped[m]) grouped[m] = [];
+                    grouped[m].push({ ex, idx });
+                });
+
+                exercisesHtml = Object.entries(grouped).map(([muscle, list]) => {
+                    const st = MUSCLE_STYLES[muscle] || MUSCLE_STYLES['Ягодицы'];
+                    return `
+                        <div class="space-y-2.5">
+                            <div class="flex items-center gap-2 px-1 pt-1">
+                                <span class="w-2 h-2 rounded-full ${st.dot}"></span>
+                                <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">${esc(muscle)}</span>
+                                <div class="h-px bg-white/[0.06] flex-1"></div>
+                            </div>
+                            ${list.map(({ ex, idx }) => renderWorkoutExerciseCard(sessionId, draft, ex, idx)).join('')}
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                exercisesHtml = draft.exercises.map((ex, idx) => renderWorkoutExerciseCard(sessionId, draft, ex, idx)).join('');
+            }
+
+            root.innerHTML = `
+                <!-- Выбор дня -->
+                <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                    ${dayPills}
+                    ${freePill}
+                </div>
+
+                <!-- Тумблер группировки -->
+                <div class="flex items-center justify-between gap-2">
+                    <div class="inline-flex p-1 rounded-[14px] bg-[#141419] border border-white/[0.07]">
+                        <button onclick="setGrouping(true)" class="px-3 py-1.5 rounded-[10px] text-xs font-medium transition-all btn-press ${state.groupByMuscle ? 'bg-white/[0.1] text-white' : 'text-zinc-500'}">
+                            По мышцам
+                        </button>
+                        <button onclick="setGrouping(false)" class="px-3 py-1.5 rounded-[10px] text-xs font-medium transition-all btn-press ${!state.groupByMuscle ? 'bg-white/[0.1] text-white' : 'text-zinc-500'}">
+                            По порядку
+                        </button>
+                    </div>
+                    ${activeProg ? `
+                        <button onclick="reloadFromProgram('${activeProg.id}')" class="text-[11px] font-medium text-zinc-400 hover:text-white px-2 py-1 btn-press">
+                            Обновить из плана
+                        </button>
+                    ` : ''}
+                </div>
+
+                ${todayNoteHtml}
+
+                <!-- Список карточек упражнений -->
+                <div class="space-y-3.5">
+                    ${exercisesHtml}
+                </div>
+
+                <!-- Кнопка добавить упражнение на лету -->
+                <button onclick="openAddSessionExerciseModal('${sessionId}')"
+                    class="w-full py-3.5 px-4 rounded-[18px] bg-[#141419] border border-dashed border-white/[0.12] text-zinc-300 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 btn-press">
+                    <span>+ Добавить упражнение</span>
+                </button>
+            `;
+        }
+
+        function renderWorkoutExerciseCard(sessionId, draft, ex, idx) {
+            const sets = draft.sets[ex.id] || [];
+            const last = getLastPerformance(ex.name);
+            const aiTip = getAiTipForExercise(ex);
+            const st = MUSCLE_STYLES[ex.muscle] || MUSCLE_STYLES['Ягодицы'];
+
+            const prevHint = last
+                ? `Прошлый раз: ${last.sets.map(s => `${s.weight} кг × ${s.reps}`).join(' · ')}`
+                : (ex.targetSets || ex.targetReps ? `Цель: ${ex.targetSets || 3}×${ex.targetReps || 10}${ex.targetWeight ? ` (${ex.targetWeight} кг)` : ''}` : 'Первая запись');
+
+            const aiBanner = aiTip ? `
+                <div class="px-3 py-2.5 rounded-[14px] bg-[#A78BFA]/10 border border-[#A78BFA]/20 text-xs text-zinc-200 leading-snug break-words">
+                    <span class="font-semibold text-[#A78BFA]">✦ Совет тренера:</span> ${esc(aiTip)}
+                </div>
+            ` : '';
+
+            const setsHtml = sets.map((s, sIdx) => `
+                <div class="flex items-center gap-2">
+                    <span class="w-5 text-center text-xs font-semibold tabular shrink-0 ${s.done ? 'text-[#6EE7B7]' : 'text-zinc-500'}">${sIdx + 1}</span>
+
+                    <!-- Вес (кг) -->
+                    <div class="flex-1 min-w-0 relative">
+                        <input type="number" inputmode="decimal" step="0.5"
+                            placeholder="${esc(s.placeholderWeight ?? '0')}"
+                            value="${s.weight !== undefined ? s.weight : ''}"
+                            onchange="updateSetInput('${sessionId}', '${ex.id}', ${sIdx}, 'weight', this.value)"
+                            class="w-full h-11 bg-[#1C1C24] border ${s.done ? 'border-[#6EE7B7]/40 text-[#6EE7B7]' : 'border-white/[0.07] text-white'} rounded-[13px] pl-2 pr-6 text-center text-sm font-semibold tabular placeholder:text-zinc-600 focus:outline-none focus:border-[#A78BFA]/60">
+                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">кг</span>
+                    </div>
+
+                    <!-- Повторения -->
+                    <div class="flex-1 min-w-0 relative">
+                        <input type="number" inputmode="numeric"
+                            placeholder="${esc(s.placeholderReps ?? '10')}"
+                            value="${s.reps !== undefined ? s.reps : ''}"
+                            onchange="updateSetInput('${sessionId}', '${ex.id}', ${sIdx}, 'reps', this.value)"
+                            class="w-full h-11 bg-[#1C1C24] border ${s.done ? 'border-[#6EE7B7]/40 text-[#6EE7B7]' : 'border-white/[0.07] text-white'} rounded-[13px] pl-2 pr-8 text-center text-sm font-semibold tabular placeholder:text-zinc-600 focus:outline-none focus:border-[#A78BFA]/60">
+                        <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">повт</span>
+                    </div>
+
+                    <!-- Крупная тактильная кнопка выполнения -->
+                    <button onclick="toggleSetDone('${sessionId}', '${ex.id}', ${sIdx})"
+                        class="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all btn-press ${
+                            s.done
+                            ? 'bg-[#6EE7B7] text-[#0B0B0E] shadow-md shadow-[#6EE7B7]/25'
+                            : 'bg-[#1C1C24] border border-white/[0.09] text-zinc-500'
+                        }" aria-label="Отметить подход">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+
+                    <!-- Удалить подход -->
+                    ${sets.length > 1 ? `
+                        <button onclick="removeSetRow('${sessionId}', '${ex.id}', ${sIdx})"
+                            class="w-6 h-11 flex items-center justify-center shrink-0 text-zinc-600 hover:text-[#FDA4AF] btn-press" aria-label="Удалить подход">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    ` : `<div class="w-6 shrink-0"></div>`}
+                </div>
+            `).join('');
+
+            return `
+                <div class="obsidian-card p-4 space-y-3">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1 space-y-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="text-[15px] font-semibold text-white leading-snug break-words">${esc(ex.name)}</h4>
+                                <span class="px-2 py-0.5 rounded-lg border text-[10px] font-medium shrink-0 ${st.badge}">${esc(ex.muscle)}</span>
+                            </div>
+                            <p class="text-[11px] text-zinc-400 tabular break-words">${prevHint}</p>
+                        </div>
+
+                        <div class="flex items-center gap-1 shrink-0">
+                            <button onclick="moveSessionEx('${sessionId}', ${idx}, -1)" ${idx === 0 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press" title="Выше">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+                            </button>
+                            <button onclick="moveSessionEx('${sessionId}', ${idx}, 1)" ${idx === draft.exercises.length - 1 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press" title="Ниже">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            <button onclick="openSwapSessionExModal('${sessionId}', ${idx})" class="icon-btn text-[#A78BFA] btn-press" title="Заменить упражнение">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </button>
+                            <button onclick="removeSessionEx('${sessionId}', ${idx})" class="icon-btn text-zinc-500 hover:text-[#FDA4AF] btn-press" title="Убрать">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    ${aiBanner}
+
+                    <div class="space-y-2 pt-0.5">
+                        ${setsHtml}
+                    </div>
+
+                    <button onclick="addSetRow('${sessionId}', '${ex.id}')"
+                        class="w-full py-2.5 rounded-[13px] bg-white/[0.03] hover:bg-white/[0.06] text-xs font-medium text-zinc-400 hover:text-zinc-200 btn-press">
+                        + Добавить подход
+                    </button>
+                </div>
+            `;
+        }
+
+        function selectWorkoutSession(dayId) {
+            state.selectedDayId = dayId;
+            saveState();
+            render();
+        }
+
+        function startFreeSession() {
+            state.selectedDayId = 'free';
+            if (!state.sessionStartedAt) state.sessionStartedAt = Date.now();
+            saveState();
+            render();
+        }
+
+        function setGrouping(byMuscle) {
+            state.groupByMuscle = byMuscle;
+            saveState();
+            render();
+        }
+
+        function updateSetInput(sessionId, exId, sIdx, field, val) {
+            const arr = state.drafts[sessionId]?.sets[exId];
+            if (arr && arr[sIdx]) {
+                arr[sIdx][field] = val === '' ? '' : (field === 'weight' ? parseFloat(val) : parseInt(val));
+                saveState();
+                render();
+            }
+        }
+
+        function toggleSetDone(sessionId, exId, sIdx) {
+            const arr = state.drafts[sessionId]?.sets[exId];
+            if (arr && arr[sIdx]) {
+                const becomingDone = !arr[sIdx].done;
+                arr[sIdx].done = becomingDone;
+                // При отметке подставляем значения из плейсхолдера, если пользователь их не менял
+                if (becomingDone) {
+                    if (arr[sIdx].weight === '' || arr[sIdx].weight === undefined) {
+                        arr[sIdx].weight = parseFloat(arr[sIdx].placeholderWeight) || 0;
+                    }
+                    if (arr[sIdx].reps === '' || arr[sIdx].reps === undefined) {
+                        arr[sIdx].reps = parseInt(arr[sIdx].placeholderReps) || 10;
+                    }
+                    startRestTimer(state.restPreset);
+                }
+                saveState();
+                render();
+            }
+        }
+
+        function addSetRow(sessionId, exId) {
+            const arr = state.drafts[sessionId]?.sets[exId];
+            if (arr) {
+                const prev = arr[arr.length - 1] || { weight: '', reps: '', placeholderWeight: '0', placeholderReps: '10' };
+                arr.push({
+                    weight: prev.weight,
+                    reps: prev.reps,
+                    placeholderWeight: prev.placeholderWeight,
+                    placeholderReps: prev.placeholderReps,
+                    done: false
+                });
+                saveState();
+                render();
+            }
+        }
+
+        function removeSetRow(sessionId, exId, sIdx) {
+            const arr = state.drafts[sessionId]?.sets[exId];
+            if (arr && arr.length > 1) {
+                arr.splice(sIdx, 1);
+                saveState();
+                render();
+            }
+        }
+
+        function moveSessionEx(sessionId, idx, dir) {
+            const d = state.drafts[sessionId];
+            if (!d) return;
+            const to = idx + dir;
+            if (to < 0 || to >= d.exercises.length) return;
+            [d.exercises[idx], d.exercises[to]] = [d.exercises[to], d.exercises[idx]];
+            saveState();
+            render();
+        }
+
+        function removeSessionEx(sessionId, idx) {
+            const d = state.drafts[sessionId];
+            if (!d) return;
+            const [rem] = d.exercises.splice(idx, 1);
+            if (rem) delete d.sets[rem.id];
+            saveState();
+            render();
+            toast('Упражнение убрано из тренировки');
+        }
+
+        function reloadFromProgram(progId) {
+            const prog = state.programs.find(p => p.id === progId);
+            if (!prog) return;
+            delete state.drafts[progId];
+            ensureSessionDraft(progId, prog.exercises);
+            saveState();
+            render();
+            toast('Список обновлен по шаблону дня');
+        }
+
+        function askResetSession(sessionId) {
+            openModal('Сбросить текущую тренировку?', `
+                <div class="space-y-4">
+                    <p class="text-xs text-zinc-400 leading-relaxed">
+                        Все галочки выполненных подходов и таймер текущей сессии будут сброшены. Сохранённые ранее тренировки в календаре останутся.
+                    </p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="closeModal()" class="py-3 rounded-[14px] bg-white/[0.06] text-white text-xs font-medium btn-press">Отмена</button>
+                        <button onclick="confirmResetSession('${sessionId}')" class="py-3 rounded-[14px] bg-[#FDA4AF] text-[#0B0B0E] text-xs font-semibold btn-press">Сбросить</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function confirmResetSession(sessionId) {
+            delete state.drafts[sessionId];
+            state.sessionStartedAt = Date.now();
+            stopRestTimer();
+            if (sessionId === 'free' && state.programs.length === 0) {
+                state.selectedDayId = null;
+                state.sessionStartedAt = null;
+            }
+            saveState();
+            closeModal();
+            render();
+            toast('Тренировка сброшена');
+        }
+
+        // Модалка добавления упражнения на лету (с галочкой "Сохранить в шаблон дня")
+        function openAddSessionExerciseModal(sessionId) {
+            const isProgDay = sessionId !== 'free' && state.programs.some(p => p.id === sessionId);
+            const opts = MUSCLE_LIST.map(m => `<option value="${m}">${m}</option>`).join('');
+
+            openModal('Добавить упражнение', `
+                <div class="space-y-3.5">
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Название упражнения</label>
+                        <input id="add-sess-ex-name" type="text" placeholder="Например: Ягодичный мостик в тренажёре"
+                            class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none focus:border-[#A78BFA]/60">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Группа мышц</label>
+                        <select id="add-sess-ex-muscle" class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none">
+                            ${opts}
+                        </select>
+                    </div>
+                    ${isProgDay ? `
+                        <label class="flex items-center gap-2.5 p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] cursor-pointer">
+                            <input id="add-sess-save-tpl" type="checkbox" checked class="w-4 h-4 accent-[#A78BFA] rounded">
+                            <span class="text-xs text-zinc-300">Сохранить также в шаблон этого дня</span>
+                        </label>
+                    ` : ''}
+                    <button onclick="submitAddSessionExercise('${sessionId}')"
+                        class="w-full py-3.5 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-sm btn-press">
+                        Добавить в тренировку
+                    </button>
+                </div>
+            `);
+        }
+
+        function submitAddSessionExercise(sessionId) {
+            const name = document.getElementById('add-sess-ex-name').value.trim();
+            const muscle = document.getElementById('add-sess-ex-muscle').value;
+            const saveToTpl = document.getElementById('add-sess-save-tpl')?.checked || false;
+
+            if (!name) return toast('Введите название упражнения', 'error');
+
+            const newEx = {
+                id: 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                name,
+                muscle,
+                targetSets: 3,
+                targetReps: 12,
+                targetWeight: ''
+            };
+
+            const draft = ensureSessionDraft(sessionId);
+            draft.exercises.push(newEx);
+            ensureSessionDraft(sessionId);
+
+            if (saveToTpl && sessionId !== 'free') {
+                const prog = state.programs.find(p => p.id === sessionId);
+                if (prog) prog.exercises.push({ ...newEx });
+            }
+
+            saveState();
+            closeModal();
+            render();
+            toast('Упражнение добавлено');
+        }
+
+        // Модалка замены упражнения во время сессии
+        function openSwapSessionExModal(sessionId, exIdx) {
+            const d = state.drafts[sessionId];
+            const cur = d?.exercises[exIdx];
+            if (!cur) return;
+
+            const opts = MUSCLE_LIST.map(m => `<option value="${m}" ${cur.muscle === m ? 'selected' : ''}>${m}</option>`).join('');
+
+            // Подбор упражнений той же группы мышц из базы
+            const pool = new Map();
+            state.programs.forEach(p => p.exercises.forEach(e => pool.set(normKey(e.name), e)));
+            state.workouts.forEach(w => w.entries.forEach(e => pool.set(normKey(e.name), { name: e.name, muscle: e.muscle })));
+            const sameMuscle = Array.from(pool.values()).filter(x => x.muscle === cur.muscle && normKey(x.name) !== normKey(cur.name));
+
+            const altsHtml = sameMuscle.length ? `
+                <div class="pt-3 border-t border-white/[0.07] space-y-2">
+                    <div class="text-[11px] font-medium text-zinc-400">Из вашей базы (${esc(cur.muscle)})</div>
+                    <div class="space-y-1.5 max-h-40 overflow-y-auto">
+                        ${sameMuscle.map(item => `
+                            <button onclick="applySwapSessionEx('${sessionId}', ${exIdx}, '${esc(item.name)}', '${esc(item.muscle)}')"
+                                class="w-full text-left p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-between gap-2 btn-press">
+                                <span class="text-xs font-medium text-white break-words min-w-0">${esc(item.name)}</span>
+                                <span class="text-[10px] text-[#A78BFA] shrink-0">Выбрать</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : '';
+
+            openModal('Заменить упражнение', `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Новое название (если тренажёр занят)</label>
+                        <input id="swap-ex-name" type="text" placeholder="Введите замену"
+                            class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none focus:border-[#A78BFA]/60">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Группа мышц</label>
+                        <select id="swap-ex-muscle" class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none">
+                            ${opts}
+                        </select>
+                    </div>
+                    <button onclick="submitSwapSessionEx('${sessionId}', ${exIdx})"
+                        class="w-full py-3.5 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-sm btn-press">
+                        Заменить
+                    </button>
+                    ${altsHtml}
+                </div>
+            `);
+        }
+
+        function submitSwapSessionEx(sessionId, exIdx) {
+            const name = document.getElementById('swap-ex-name').value.trim();
+            const muscle = document.getElementById('swap-ex-muscle').value;
+            if (!name) return toast('Введите название замены', 'error');
+            applySwapSessionEx(sessionId, exIdx, name, muscle);
+        }
+
+        function applySwapSessionEx(sessionId, exIdx, name, muscle) {
+            const d = state.drafts[sessionId];
+            if (!d || !d.exercises[exIdx]) return;
+            delete d.sets[d.exercises[exIdx].id];
+            d.exercises[exIdx] = {
+                id: 'ex_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                name,
+                muscle,
+                targetSets: 3,
+                targetReps: 12
+            };
+            ensureSessionDraft(sessionId);
+            saveState();
+            closeModal();
+            render();
+            toast('Упражнение заменено');
+        }
+
+        // Модалка завершения тренировки с итогами и заметкой о самочувствии
+        function openFinishModal(sessionId, sessionName) {
+            const d = state.drafts[sessionId];
+            if (!d) return;
+
+            let totalVol = 0;
+            let doneCount = 0;
+            let totalCount = 0;
+
+            d.exercises.forEach(ex => {
+                (d.sets[ex.id] || []).forEach(s => {
+                    totalCount++;
+                    const { w, r } = getEffectiveSetValues(s);
+                    if (s.done && r > 0) {
+                        doneCount++;
+                        totalVol += w * r;
+                    }
+                });
+            });
+
+            // Если галочки не ставили, посчитаем по заполненным подходам
+            if (doneCount === 0) {
+                d.exercises.forEach(ex => {
+                    (d.sets[ex.id] || []).forEach(s => {
+                        const { w, r } = getEffectiveSetValues(s);
+                        if ((s.weight !== '' || s.reps !== '') && r > 0) {
+                            doneCount++;
+                            totalVol += w * r;
+                        }
+                    });
+                });
+            }
+
+            const durationSec = state.sessionStartedAt ? Math.floor((Date.now() - state.sessionStartedAt) / 1000) : 0;
+
+            openModal('Завершение тренировки', `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="obsidian-sub p-3 text-center">
+                            <div class="text-[10px] text-zinc-400">Подходы</div>
+                            <div class="text-base font-bold text-white tabular mt-0.5">${doneCount}</div>
+                        </div>
+                        <div class="obsidian-sub p-3 text-center">
+                            <div class="text-[10px] text-zinc-400">Тоннаж</div>
+                            <div class="text-base font-bold text-[#6EE7B7] tabular mt-0.5">${fmtNum(totalVol)} кг</div>
+                        </div>
+                        <div class="obsidian-sub p-3 text-center">
+                            <div class="text-[10px] text-zinc-400">Время</div>
+                            <div class="text-base font-bold text-[#A78BFA] tabular mt-0.5">${formatDuration(durationSec)}</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Дата тренировки</label>
+                        <input id="finish-date-in" type="date" value="${todayISO()}"
+                            class="w-full obsidian-sub px-3.5 py-2.5 text-sm text-white tabular focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Самочувствие и заметки (увидит ИИ-тренер)</label>
+                        <textarea id="finish-feeling-in" rows="3" placeholder="Как прошла тренировка? Например: было легко, можно прибавить вес в ягодичном мостике"
+                            class="w-full obsidian-sub p-3 text-xs text-white leading-relaxed focus:outline-none focus:border-[#A78BFA]/60"></textarea>
+                    </div>
+
+                    <button onclick="saveCompletedWorkout('${sessionId}', '${esc(sessionName)}')"
+                        class="w-full py-3.5 rounded-[14px] bg-[#6EE7B7] text-[#0B0B0E] font-semibold text-sm shadow-lg shadow-[#6EE7B7]/20 btn-press">
+                        Сохранить тренировку
+                    </button>
+                </div>
+            `);
+        }
+
+        function saveCompletedWorkout(sessionId, sessionName) {
+            const d = state.drafts[sessionId];
+            if (!d) return;
+
+            const chosenDate = document.getElementById('finish-date-in').value || todayISO();
+            const feelingNote = document.getElementById('finish-feeling-in').value.trim();
+
+            let totalVol = 0;
+            const entries = [];
+
+            d.exercises.forEach(ex => {
+                const rawSets = d.sets[ex.id] || [];
+                const checked = rawSets.filter(s => s.done);
+                const source = checked.length > 0 ? checked : rawSets.filter(s => s.weight !== '' || s.reps !== '');
+
+                if (source.length > 0) {
+                    const sets = source.map(s => {
+                        const { w, r } = getEffectiveSetValues(s);
+                        totalVol += w * r;
+                        return { weight: w, reps: r, done: true };
+                    }).filter(s => s.reps > 0);
+
+                    if (sets.length > 0) {
+                        entries.push({
+                            exerciseId: ex.id,
+                            name: ex.name,
+                            muscle: ex.muscle,
+                            sets
+                        });
+                    }
+                }
+            });
+
+            if (entries.length === 0) {
+                return toast('Отметьте хотя бы один выполненный подход', 'error');
+            }
+
+            const durationSec = state.sessionStartedAt ? Math.floor((Date.now() - state.sessionStartedAt) / 1000) : 0;
+
+            state.workouts.push({
+                id: 'w_' + Date.now(),
+                date: chosenDate,
+                dayId: sessionId,
+                dayName: sessionName,
+                totalVolume: Math.round(totalVol),
+                durationSec,
+                feelingNote,
+                entries
+            });
+
+            delete state.drafts[sessionId];
+            state.sessionStartedAt = null;
+            stopRestTimer();
+            state.calendar.selectedDate = chosenDate;
+
+            saveState();
+            closeModal();
+            toast(`Тренировка сохранена · ${fmtNum(totalVol)} кг`);
+            setTab('progress');
+        }
+
+        /**
+         * ============================================================================
+         * 7. ВКЛАДКА 2: КОНСТРУКТОР ПРОГРАММЫ
+         * ============================================================================
+         */
+        function renderProgramTab() {
+            if (state.programs.length === 0) {
+                return `
+                    <div class="obsidian-card p-6 text-center space-y-4 mt-2">
+                        <div class="space-y-1.5">
+                            <h2 class="text-base font-semibold text-white">Программа пока не создана</h2>
+                            <p class="text-xs text-zinc-400 leading-relaxed max-w-xs mx-auto">
+                                Создайте первый тренировочный день вручную или загрузите готовую программу от нейросети в формате JSON.
+                            </p>
+                        </div>
+                        <div class="space-y-2.5 pt-1">
+                            <button onclick="openDayModal()" class="w-full py-3.5 px-4 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-sm btn-press">
+                                + Создать первый день
+                            </button>
+                            <button onclick="openJsonImportModal()" class="w-full py-3.5 px-4 rounded-[14px] bg-white/[0.05] border border-white/[0.08] text-white font-medium text-sm btn-press">
+                                Загрузить JSON от ИИ
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="space-y-3.5">
+                    ${state.programs.map((prog, pIdx) => {
+                        const exHtml = prog.exercises.map((ex, eIdx) => {
+                            const st = MUSCLE_STYLES[ex.muscle] || MUSCLE_STYLES['Ягодицы'];
+                            const tip = getAiTipForExercise(ex);
+                            return `
+                                <div class="p-3 rounded-[15px] bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-2">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <span class="w-1.5 h-1.5 rounded-full ${st.dot} shrink-0"></span>
+                                            <span class="text-xs sm:text-[13px] font-medium text-white break-words">${esc(ex.name)}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-zinc-400 tabular">
+                                            <span>${esc(ex.muscle)}</span>
+                                            <span>·</span>
+                                            <span>${ex.targetSets || 3}×${ex.targetReps || 12}${ex.targetWeight ? ` · ${ex.targetWeight} кг` : ''}</span>
+                                            ${tip ? `<span class="text-[#A78BFA]">✦ Совет ИИ</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <button onclick="moveProgEx('${prog.id}', ${eIdx}, -1)" ${eIdx === 0 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press">↑</button>
+                                        <button onclick="moveProgEx('${prog.id}', ${eIdx}, 1)" ${eIdx === prog.exercises.length - 1 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press">↓</button>
+                                        <button onclick="openProgExModal('${prog.id}', ${eIdx})" class="icon-btn text-zinc-300 btn-press">✎</button>
+                                        <button onclick="deleteProgEx('${prog.id}', ${eIdx})" class="icon-btn text-zinc-500 hover:text-[#FDA4AF] btn-press">✕</button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
+                        return `
+                            <div class="obsidian-card p-4 space-y-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h3 class="text-base font-semibold text-white truncate min-w-0">${esc(prog.name)}</h3>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <button onclick="moveProgDay(${pIdx}, -1)" ${pIdx === 0 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press">↑</button>
+                                        <button onclick="moveProgDay(${pIdx}, 1)" ${pIdx === state.programs.length - 1 ? 'disabled' : ''} class="icon-btn text-zinc-400 disabled:opacity-25 btn-press">↓</button>
+                                        <button onclick="openDayModal('${prog.id}')" class="icon-btn text-zinc-300 btn-press">✎</button>
+                                        <button onclick="deleteProgDay('${prog.id}')" class="icon-btn text-zinc-500 hover:text-[#FDA4AF] btn-press">✕</button>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    ${exHtml || '<p class="text-xs text-zinc-500 text-center py-2">Добавьте упражнения в этот день</p>'}
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2 pt-1">
+                                    <button onclick="openProgExModal('${prog.id}')"
+                                        class="py-2.5 px-3 rounded-[13px] bg-white/[0.04] border border-white/[0.07] text-xs font-medium text-zinc-200 btn-press">
+                                        + Упражнение
+                                    </button>
+                                    <button onclick="startWorkoutFromDay('${prog.id}')"
+                                        class="py-2.5 px-3 rounded-[13px] bg-[#6EE7B7]/15 border border-[#6EE7B7]/25 text-xs font-semibold text-[#6EE7B7] btn-press">
+                                        Начать эту тренировку
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function startWorkoutFromDay(progId) {
+            state.selectedDayId = progId;
+            reloadFromProgram(progId);
+            setTab('workout');
+        }
+
+        function openDayModal(progId = null) {
+            const cur = progId ? state.programs.find(p => p.id === progId) : null;
+            openModal(cur ? 'Переименовать день' : 'Новый день программы', `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Название дня</label>
+                        <input id="day-name-in" type="text" value="${cur ? esc(cur.name) : ''}" placeholder="Например: День 1: Ягодицы и ноги"
+                            class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none focus:border-[#A78BFA]/60">
+                    </div>
+                    <button onclick="saveDayModal('${progId || ''}')"
+                        class="w-full py-3.5 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-sm btn-press">
+                        Сохранить
+                    </button>
+                </div>
+            `);
+        }
+
+        function saveDayModal(progId) {
+            const name = document.getElementById('day-name-in').value.trim();
+            if (!name) return toast('Введите название дня', 'error');
+
+            if (progId) {
+                const p = state.programs.find(x => x.id === progId);
+                if (p) p.name = name;
+            } else {
+                const newDay = { id: 'day_' + Date.now(), name, exercises: [] };
+                state.programs.push(newDay);
+                if (!state.selectedDayId || state.selectedDayId === 'free') state.selectedDayId = newDay.id;
+            }
+            saveState();
+            closeModal();
+            render();
+            toast(progId ? 'Название обновлено' : 'День добавлен');
+        }
+
+        function moveProgDay(idx, dir) {
+            const to = idx + dir;
+            if (to < 0 || to >= state.programs.length) return;
+            [state.programs[idx], state.programs[to]] = [state.programs[to], state.programs[idx]];
+            saveState();
+            render();
+        }
+
+        function deleteProgDay(progId) {
+            state.programs = state.programs.filter(p => p.id !== progId);
+            delete state.drafts[progId];
+            if (state.selectedDayId === progId) state.selectedDayId = state.programs[0]?.id || null;
+            saveState();
+            render();
+            toast('День удалён');
+        }
+
+        function openProgExModal(progId, exIdx = null) {
+            const prog = state.programs.find(p => p.id === progId);
+            if (!prog) return;
+            const cur = exIdx !== null ? prog.exercises[exIdx] : null;
+            const opts = MUSCLE_LIST.map(m => `<option value="${m}" ${cur?.muscle === m ? 'selected' : ''}>${m}</option>`).join('');
+
+            openModal(cur ? 'Редактировать упражнение' : 'Добавить упражнение', `
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Название упражнения</label>
+                        <input id="prog-ex-name" type="text" value="${cur ? esc(cur.name) : ''}" placeholder="Например: Румынская тяга с гантелями"
+                            class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none focus:border-[#A78BFA]/60">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-zinc-400 mb-1.5">Группа мышц</label>
+                        <select id="prog-ex-muscle" class="w-full obsidian-sub px-3.5 py-3 text-sm text-white focus:outline-none">
+                            ${opts}
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[11px] text-zinc-400 mb-1">Подходы</label>
+                            <input id="prog-ex-sets" type="number" inputmode="numeric" value="${cur ? (cur.targetSets || 3) : 3}"
+                                class="w-full obsidian-sub px-2 py-2.5 text-sm text-center text-white tabular focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-zinc-400 mb-1">Повторы</label>
+                            <input id="prog-ex-reps" type="number" inputmode="numeric" value="${cur ? (cur.targetReps || 12) : 12}"
+                                class="w-full obsidian-sub px-2 py-2.5 text-sm text-center text-white tabular focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-zinc-400 mb-1">Вес (кг)</label>
+                            <input id="prog-ex-weight" type="number" inputmode="decimal" step="0.5" placeholder="—" value="${cur?.targetWeight || ''}"
+                                class="w-full obsidian-sub px-2 py-2.5 text-sm text-center text-white tabular focus:outline-none">
+                        </div>
+                    </div>
+                    <button onclick="saveProgExModal('${progId}', ${exIdx})"
+                        class="w-full py-3.5 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-sm btn-press">
+                        Сохранить
+                    </button>
+                </div>
+            `);
+        }
+
+        function saveProgExModal(progId, exIdx) {
+            const prog = state.programs.find(p => p.id === progId);
+            if (!prog) return;
+            const name = document.getElementById('prog-ex-name').value.trim();
+            const muscle = document.getElementById('prog-ex-muscle').value;
+            const targetSets = parseInt(document.getElementById('prog-ex-sets').value) || 3;
+            const targetReps = parseInt(document.getElementById('prog-ex-reps').value) || 12;
+            const wRaw = document.getElementById('prog-ex-weight').value;
+            const targetWeight = wRaw === '' ? '' : parseFloat(wRaw);
+
+            if (!name) return toast('Введите название упражнения', 'error');
+
+            if (exIdx !== null && prog.exercises[exIdx]) {
+                prog.exercises[exIdx] = { ...prog.exercises[exIdx], name, muscle, targetSets, targetReps, targetWeight };
+            } else {
+                prog.exercises.push({
+                    id: 'pex_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                    name,
+                    muscle,
+                    targetSets,
+                    targetReps,
+                    targetWeight
+                });
+            }
+
+            delete state.drafts[progId];
+            saveState();
+            closeModal();
+            render();
+            toast('Упражнение сохранено');
+        }
+
+        function moveProgEx(progId, idx, dir) {
+            const prog = state.programs.find(p => p.id === progId);
+            if (!prog) return;
+            const to = idx + dir;
+            if (to < 0 || to >= prog.exercises.length) return;
+            [prog.exercises[idx], prog.exercises[to]] = [prog.exercises[to], prog.exercises[idx]];
+            delete state.drafts[progId];
+            saveState();
+            render();
+        }
+
+        function deleteProgEx(progId, idx) {
+            const prog = state.programs.find(p => p.id === progId);
+            if (!prog) return;
+            prog.exercises.splice(idx, 1);
+            delete state.drafts[progId];
+            saveState();
+            render();
+            toast('Удалено из программы');
+        }
+
+        /**
+         * ============================================================================
+         * 8. ВКЛАДКА 3: ПРОГРЕСС, КАЛЕНДАРЬ И АНАЛИТИКА
+         * ============================================================================
+         */
+        function renderProgressTab() {
+            const today = todayISO();
+            const weekStart = getStartOfWeekISO(today);
+            const monthPrefix = today.slice(0, 7); // YYYY-MM
+
+            const todayLogs = state.workouts.filter(w => w.date === today);
+            const weekLogs = state.workouts.filter(w => w.date >= weekStart && w.date <= today);
+            const monthLogs = state.workouts.filter(w => w.date.startsWith(monthPrefix));
+
+            const volToday = todayLogs.reduce((s, w) => s + w.totalVolume, 0);
+            const volWeek = weekLogs.reduce((s, w) => s + w.totalVolume, 0);
+            const volMonth = monthLogs.reduce((s, w) => s + w.totalVolume, 0);
+
+            // Разбивка нагрузки по группам мышц за текущий месяц (или все записи, если за месяц пусто)
+            const sourceForMuscles = monthLogs.length > 0 ? monthLogs : state.workouts;
+            const muscleStats = {};
+            let maxVol = 0;
+
+            sourceForMuscles.forEach(w => {
+                w.entries.forEach(e => {
+                    const m = e.muscle || 'Ягодицы';
+                    if (!muscleStats[m]) muscleStats[m] = { vol: 0, sets: 0 };
+                    e.sets.forEach(s => {
+                        muscleStats[m].vol += (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0);
+                        muscleStats[m].sets += 1;
+                    });
+                    if (muscleStats[m].vol > maxVol) maxVol = muscleStats[m].vol;
+                });
+            });
+
+            const muscleBarsHtml = Object.keys(muscleStats).length === 0
+                ? `<p class="text-xs text-zinc-500 text-center py-3">Завершите первую тренировку, чтобы увидеть распределение нагрузки</p>`
+                : Object.entries(muscleStats)
+                    .sort((a, b) => b[1].vol - a[1].vol)
+                    .map(([m, info]) => {
+                        const pct = maxVol > 0 ? Math.max(8, Math.round((info.vol / maxVol) * 100)) : 8;
+                        const st = MUSCLE_STYLES[m] || MUSCLE_STYLES['Ягодицы'];
+                        return `
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between gap-2 text-xs">
+                                    <span class="font-medium text-zinc-200 truncate">${esc(m)} <span class="text-zinc-500 tabular">(${info.sets} подх.)</span></span>
+                                    <span class="font-semibold text-white tabular shrink-0">${fmtNum(info.vol)} кг</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                                    <div class="h-full ${st.dot} rounded-full" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+            // Детали выбранной даты в календаре
+            const selDate = state.calendar.selectedDate;
+            const dayWorkouts = state.workouts.filter(w => w.date === selDate);
+            const dayAiComment = state.aiData.dateComments[selDate];
+
+            const dayAiHtml = dayAiComment ? `
+                <div class="p-3 rounded-[14px] bg-[#A78BFA]/10 border border-[#A78BFA]/20 space-y-1">
+                    <div class="text-[11px] font-semibold text-[#A78BFA]">✦ Комментарий ИИ-тренера</div>
+                    <p class="text-xs text-zinc-200 leading-relaxed break-words">${esc(dayAiComment)}</p>
+                </div>
+            ` : '';
+
+            const dayWorkoutsHtml = dayWorkouts.length === 0
+                ? `<p class="text-xs text-zinc-500 text-center py-3">В этот день тренировок не записано</p>`
+                : dayWorkouts.map(w => `
+                    <div class="p-3.5 rounded-[16px] bg-white/[0.03] border border-white/[0.06] space-y-2.5">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="text-xs font-semibold text-[#A78BFA] truncate">${esc(w.dayName)}</div>
+                                <div class="text-[11px] text-zinc-400 tabular mt-0.5">
+                                    Тоннаж: <span class="text-white font-medium">${fmtNum(w.totalVolume)} кг</span>
+                                    ${w.durationSec ? ` · ${formatDuration(w.durationSec)}` : ''}
+                                </div>
+                            </div>
+                            <button onclick="deleteSavedWorkout('${w.id}')" class="px-2.5 py-1 rounded-lg bg-[#FDA4AF]/10 text-[#FDA4AF] text-[11px] font-medium shrink-0 btn-press">
+                                Удалить тренировку
+                            </button>
+                        </div>
+
+                        ${w.feelingNote ? `
+                            <div class="px-2.5 py-2 rounded-xl bg-white/[0.03] text-[11px] text-zinc-300 italic break-words">
+                                «${esc(w.feelingNote)}»
+                            </div>
+                        ` : ''}
+
+                        <div class="space-y-1.5 pt-1 border-t border-white/[0.06]">
+                            ${w.entries.map(e => `
+                                <div class="text-xs flex items-baseline justify-between gap-2">
+                                    <span class="text-zinc-200 font-medium truncate">${esc(e.name)}</span>
+                                    <span class="text-[11px] text-zinc-400 tabular shrink-0">${e.sets.map(s => `${s.weight}×${s.reps}`).join(', ')}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+
+            // Прогресс рабочих весов по выбранному упражнению
+            const uniqueEx = Array.from(new Set(state.workouts.flatMap(w => w.entries.map(e => e.name)))).sort();
+            if (uniqueEx.length > 0 && !uniqueEx.includes(state.calendar.selectedExercise)) {
+                state.calendar.selectedExercise = uniqueEx[0];
+            }
+
+            const exProgressCard = uniqueEx.length === 0 ? '' : (() => {
+                const target = state.calendar.selectedExercise;
+                const points = [...state.workouts]
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map(w => {
+                        const found = w.entries.find(e => e.name === target);
+                        if (!found) return null;
+                        const maxW = Math.max(...found.sets.map(s => parseFloat(s.weight) || 0));
+                        const vol = found.sets.reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+                        return { date: w.date, maxW, vol, sets: found.sets };
+                    })
+                    .filter(Boolean);
+
+                return `
+                    <div class="obsidian-card p-4 space-y-3">
+                        <h3 class="text-sm font-semibold text-white">Динамика весов в упражнении</h3>
+                        <select onchange="changeProgressExercise(this.value)" class="w-full obsidian-sub px-3.5 py-2.5 text-xs font-medium text-white focus:outline-none">
+                            ${uniqueEx.map(n => `<option value="${esc(n)}" ${n === target ? 'selected' : ''}>${esc(n)}</option>`).join('')}
+                        </select>
+                        <div class="space-y-1.5">
+                            ${points.slice(-6).reverse().map(pt => `
+                                <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/[0.025] border border-white/[0.05] text-xs tabular">
+                                    <div class="min-w-0">
+                                        <div class="text-zinc-200 font-medium">${fmtDateHuman(pt.date)}</div>
+                                        <div class="text-[11px] text-zinc-500 truncate">${pt.sets.map(s => `${s.weight}×${s.reps}`).join(', ')}</div>
+                                    </div>
+                                    <div class="text-right shrink-0">
+                                        <div class="font-semibold text-[#6EE7B7]">Макс: ${pt.maxW} кг</div>
+                                        <div class="text-[11px] text-zinc-500">${fmtNum(pt.vol)} кг</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            })();
+
+            return `
+                <!-- 3 карточки объёма: Сутки, Неделя, Месяц -->
+                <div class="grid grid-cols-3 gap-2">
+                    <div class="obsidian-card p-3 min-w-0">
+                        <div class="text-[10px] font-medium text-zinc-400 truncate">Сутки</div>
+                        <div class="text-sm sm:text-base font-bold text-white tabular mt-1 truncate">${fmtNum(volToday)} <span class="text-[10px] font-normal text-zinc-500">кг</span></div>
+                        <div class="text-[10px] text-zinc-500 tabular mt-0.5">${todayLogs.length} трен.</div>
+                    </div>
+                    <div class="obsidian-card p-3 min-w-0">
+                        <div class="text-[10px] font-medium text-zinc-400 truncate">Неделя</div>
+                        <div class="text-sm sm:text-base font-bold text-[#A78BFA] tabular mt-1 truncate">${fmtNum(volWeek)} <span class="text-[10px] font-normal text-zinc-500">кг</span></div>
+                        <div class="text-[10px] text-zinc-500 tabular mt-0.5">${weekLogs.length} трен.</div>
+                    </div>
+                    <div class="obsidian-card p-3 min-w-0">
+                        <div class="text-[10px] font-medium text-zinc-400 truncate">Месяц</div>
+                        <div class="text-sm sm:text-base font-bold text-[#6EE7B7] tabular mt-1 truncate">${fmtNum(volMonth)} <span class="text-[10px] font-normal text-zinc-500">кг</span></div>
+                        <div class="text-[10px] text-zinc-500 tabular mt-0.5">${monthLogs.length} трен.</div>
+                    </div>
+                </div>
+
+                <!-- Интерактивный календарь -->
+                <div class="obsidian-card p-4 space-y-3">
+                    ${renderCalendarGrid()}
+                    <div class="pt-3 border-t border-white/[0.06] space-y-2.5">
+                        <div class="text-xs font-medium text-zinc-400">${fmtDateHuman(selDate)}</div>
+                        ${dayAiHtml}
+                        ${dayWorkoutsHtml}
+                    </div>
+                </div>
+
+                <!-- Объём по группам мышц -->
+                <div class="obsidian-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">Нагрузка по группам мышц</h3>
+                        <span class="text-[11px] text-zinc-500">${monthLogs.length > 0 ? 'За месяц' : 'Всего'}</span>
+                    </div>
+                    <div class="space-y-3 pt-1">
+                        ${muscleBarsHtml}
+                    </div>
+                </div>
+
+                ${exProgressCard}
+            `;
+        }
+
+        function renderCalendarGrid() {
+            const y = state.calendar.year;
+            const m = state.calendar.month;
+            const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+            const first = new Date(y, m, 1);
+            const offset = (first.getDay() + 6) % 7;
+            const totalDays = new Date(y, m + 1, 0).getDate();
+            const today = todayISO();
+
+            const workoutDates = new Set(state.workouts.map(w => w.date));
+            const aiDates = new Set(Object.keys(state.aiData.dateComments));
+
+            let cells = '';
+            for (let i = 0; i < offset; i++) cells += `<div></div>`;
+            for (let d = 1; d <= totalDays; d++) {
+                const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isSel = iso === state.calendar.selectedDate;
+                const isToday = iso === today;
+                const hasW = workoutDates.has(iso);
+                const hasAi = aiDates.has(iso);
+
+                cells += `
+                    <button onclick="selectCalDate('${iso}')"
+                        class="h-10 rounded-xl flex flex-col items-center justify-center text-xs tabular transition-all btn-press ${
+                            isSel
+                            ? 'bg-[#A78BFA] text-[#0B0B0E] font-bold'
+                            : isToday
+                            ? 'bg-white/[0.08] text-white font-semibold'
+                            : 'text-zinc-300 hover:bg-white/[0.04]'
+                        }">
+                        <span>${d}</span>
+                        <div class="flex items-center gap-0.5 h-1.5 mt-0.5">
+                            ${hasW ? `<span class="w-1.5 h-1.5 rounded-full ${isSel ? 'bg-[#0B0B0E]' : 'bg-[#A78BFA]'}"></span>` : ''}
+                            ${hasAi ? `<span class="w-1.5 h-1.5 rounded-full ${isSel ? 'bg-white' : 'bg-[#6EE7B7]'}"></span>` : ''}
+                        </div>
+                    </button>
+                `;
+            }
+
+            return `
+                <div class="flex items-center justify-between gap-2">
+                    <button onclick="shiftCalendarMonth(-1)" class="icon-btn text-zinc-300 btn-press" aria-label="Предыдущий месяц">‹</button>
+                    <div class="text-sm font-semibold text-white">${monthNames[m]} ${y}</div>
+                    <button onclick="shiftCalendarMonth(1)" class="icon-btn text-zinc-300 btn-press" aria-label="Следующий месяц">›</button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-zinc-500 pt-1">
+                    <div>ПН</div><div>ВТ</div><div>СР</div><div>ЧТ</div><div>ПТ</div><div>СБ</div><div>ВС</div>
+                </div>
+                <div class="grid grid-cols-7 gap-1">${cells}</div>
+            `;
+        }
+
+        function shiftCalendarMonth(delta) {
+            let m = state.calendar.month + delta;
+            let y = state.calendar.year;
+            if (m < 0) { m = 11; y--; }
+            if (m > 11) { m = 0; y++; }
+            state.calendar.month = m;
+            state.calendar.year = y;
+            render();
+        }
+
+        function selectCalDate(iso) {
+            state.calendar.selectedDate = iso;
+            render();
+        }
+
+        function jumpCalendarToday() {
+            const now = new Date();
+            state.calendar.year = now.getFullYear();
+            state.calendar.month = now.getMonth();
+            state.calendar.selectedDate = todayISO(now);
+            render();
+        }
+
+        function changeProgressExercise(name) {
+            state.calendar.selectedExercise = name;
+            render();
+        }
+
+        function deleteSavedWorkout(id) {
+            state.workouts = state.workouts.filter(w => w.id !== id);
+            saveState();
+            render();
+            toast('Тренировка удалена из истории');
+        }
+
+        /**
+         * ============================================================================
+         * 9. ВКЛАДКА 4: ДВУСТОРОННЯЯ СИНХРОНИЗАЦИЯ С ИИ, CSV И JSON БЭКАП
+         * ============================================================================
+         */
+        function buildFullAiSyncPrompt() {
+            const payload = {
+                programs: state.programs,
+                workouts: state.workouts,
+                current_ai_notes: state.aiData
+            };
+
+            return `Ты мой персональный фитнес-тренер. Проанализируй мои данные из приложения VelvetLog (программу, историю тренировок и мои заметки о самочувствии) и верни ТОЛЬКО валидный JSON-объект без лишнего текста, чтобы я могла загрузить его обратно в приложение.
+
+Строгий формат JSON-ответа:
+{
+  "general_comment": "Общий вывод по прогрессу, восстановлению и нагрузке",
+  "ai_comments": [
+    {
+      "exercise_id": "ID упражнения из программы (если есть)",
+      "exercise_name": "Точное название упражнения",
+      "date": "${todayISO()}",
+      "comment": "Персональный совет по технике, прогрессии веса или восстановлению"
+    }
+  ],
+  "program_updates": [
+    {
+      "program_day_id": "ID дня программы (если есть)",
+      "day_name": "Название дня",
+      "exercise_id": "ID упражнения (если есть)",
+      "exercise_name": "Текущее название упражнения",
+      "new_weight": 25,
+      "new_sets": 3,
+      "new_reps": 12,
+      "replace_with_name": "Новое название (заполнять ТОЛЬКО если предлагаешь заменить упражнение)"
+    }
+  ]
+}
+
+Примечание: в массиве "ai_comments" можно привязывать совет либо к упражнению (через exercise_id / exercise_name), либо к конкретной дате тренировки (указав поле "date" без exercise_name).
+
+МОИ ДАННЫЕ ИЗ ПРИЛОЖЕНИЯ:
+${JSON.stringify(payload, null, 2)}`;
+        }
+
+        function copyStarterProgramPrompt() {
+            const prompt = `Составь для меня программу тренировок в тренажёрном зале и верни ответ ТОЛЬКО в виде валидного JSON без лишнего текста, чтобы я могла загрузить его в приложение VelvetLog.
+
+Формат JSON:
+{
+  "general_comment": "Краткое пояснение по программе и отдыху",
+  "programs": [
+    {
+      "name": "День 1: Ягодицы и ноги",
+      "exercises": [
+        { "name": "Ягодичный мостик в тренажёре", "muscle": "Ягодицы", "targetSets": 4, "targetReps": 12, "targetWeight": 30 },
+        { "name": "Румынская тяга с гантелями", "muscle": "Ноги", "targetSets": 3, "targetReps": 12, "targetWeight": 16 }
+      ]
+    }
+  ]
+}
+
+Допустимые значения поля "muscle": Ягодицы, Ноги, Спина, Грудь, Плечи, Бицепс, Трицепс, Пресс.`;
+            copyToClipboard(prompt, 'Промпт для создания программы скопирован');
+        }
+
+        function renderAiTab() {
+            const exComments = Object.entries(state.aiData.exerciseComments);
+            const dateComments = Object.entries(state.aiData.dateComments);
+            const hasAnyAi = state.aiData.generalComment || exComments.length > 0 || dateComments.length > 0;
+
+            const activeNotesHtml = !hasAnyAi ? `
+                <p class="text-xs text-zinc-500 text-center py-3">
+                    Активных советов от ИИ пока нет. Отправьте данные нейросети и вставьте её JSON-ответ выше.
+                </p>
+            ` : `
+                <div class="space-y-2.5">
+                    ${state.aiData.generalComment ? `
+                        <div class="p-3.5 rounded-[15px] bg-[#A78BFA]/10 border border-[#A78BFA]/25 space-y-1">
+                            <div class="text-[11px] font-semibold text-[#A78BFA]">✦ Общий комментарий тренера</div>
+                            <p class="text-xs text-zinc-200 leading-relaxed break-words">${esc(state.aiData.generalComment)}</p>
+                        </div>
+                    ` : ''}
+
+                    ${exComments.map(([k, item]) => `
+                        <div class="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] flex items-start justify-between gap-2">
+                            <div class="min-w-0 space-y-0.5">
+                                <div class="text-[11px] font-semibold text-[#A78BFA] truncate">${esc(item.label || k)}</div>
+                                <p class="text-xs text-zinc-300 leading-snug break-words">${esc(item.comment)}</p>
+                            </div>
+                            <button onclick="deleteExAiComment('${esc(k)}')" class="text-zinc-500 hover:text-[#FDA4AF] text-xs px-1 shrink-0 btn-press">✕</button>
+                        </div>
+                    `).join('')}
+
+                    ${dateComments.map(([iso, txt]) => `
+                        <div class="p-3 rounded-[14px] bg-white/[0.03] border border-white/[0.06] flex items-start justify-between gap-2">
+                            <div class="min-w-0 space-y-0.5">
+                                <div class="text-[11px] font-semibold text-[#6EE7B7] tabular">${fmtDateHuman(iso)}</div>
+                                <p class="text-xs text-zinc-300 leading-snug break-words">${esc(txt)}</p>
+                            </div>
+                            <button onclick="deleteDateAiComment('${iso}')" class="text-zinc-500 hover:text-[#FDA4AF] text-xs px-1 shrink-0 btn-press">✕</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            return `
+                <!-- Шаг 1: Отправить данные нейросети -->
+                <div class="obsidian-card p-4 space-y-3">
+                    <div class="space-y-1">
+                        <div class="text-[11px] font-semibold text-[#A78BFA]">Шаг 1</div>
+                        <h3 class="text-sm font-semibold text-white">Отправить данные нейросети</h3>
+                        <p class="text-xs text-zinc-400 leading-relaxed">
+                            Скопирует вашу программу, историю тренировок и заметки о самочувствии вместе с инструкцией для ИИ.
+                        </p>
+                    </div>
+                    <button onclick="copyAllForAi()" class="w-full py-3.5 px-4 rounded-[14px] bg-[#A78BFA] text-[#0B0B0E] font-semibold text-xs sm:text-sm btn-press">
+                        Скопировать всё для ИИ (Данные + Промпт)
+                    </button>
+                    <div class="grid grid-cols-2 gap-2 pt-0.5">
+                        <button onclick="downloadJsonBackup()" class="py-2.5 px-3 rounded-[13px] bg-white/[0.04] border border-white/[0.07] text-[11px] font-medium text-zinc-200 btn-press">
+                            Скачать полный бэкап (.json)
+                        </button>
+                        <button onclick="downloadCsvExport()" class="py-2.5 px-3 rounded-[13px] bg-white/[0.04] border border-white/[0.07] text-[11px] font-medium text-zinc-200 btn-press">
+                            Экспорт в CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Шаг 2: Загрузить ответ от ИИ или бэкап -->
+                <div class="obsidian-card p-4 space-y-3">
+                    <div class="space-y-1">
+                        <div class="text-[11px] font-semibold text-[#6EE7B7]">Шаг 2</div>
+                        <h3 class="text-sm font-semibold text-white">Загрузить ответ от ИИ или бэкап</h3>
+                        <p class="text-xs text-zinc-400 leading-relaxed">
+                            Вставьте ответ от нейросети — советы автоматически появятся в карточках упражнений, а веса в программе обновятся.
+                        </p>
+                    </div>
+                    <textarea id="inline-ai-json" rows="4" placeholder='Вставьте JSON-ответ от нейросети сюда...'
+                        class="w-full obsidian-sub p-3 text-xs font-mono text-[#6EE7B7] focus:outline-none focus:border-[#A78BFA]/60"></textarea>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="applyInlineJson()" class="py-3 px-3 rounded-[14px] bg-[#6EE7B7] text-[#0B0B0E] font-semibold text-xs btn-press">
+                            Применить
+                        </button>
+                        <label class="py-3 px-3 rounded-[14px] bg-white/[0.05] border border-white/[0.08] text-white font-medium text-xs flex items-center justify-center cursor-pointer btn-press">
+                            <span>Загрузить .json</span>
+                            <input type="file" accept=".json,application/json" onchange="handleJsonFileUpload(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Помощник для старта с нуля -->
+                <div class="obsidian-card p-4 space-y-2.5">
+                    <h3 class="text-sm font-semibold text-white">Создание программы с нуля</h3>
+                    <p class="text-xs text-zinc-400 leading-relaxed">
+                        Если программы ещё нет, скопируйте этот шаблон запроса, отправьте нейросети и вставьте полученный JSON в поле выше.
+                    </p>
+                    <button onclick="copyStarterProgramPrompt()" class="w-full py-3 px-4 rounded-[14px] bg-white/[0.04] border border-white/[0.07] text-xs font-medium text-[#A78BFA] btn-press">
+                        Скопировать промпт для создания новой программы
+                    </button>
+                </div>
+
+                <!-- Активные советы ИИ -->
+                <div class="obsidian-card p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-white">Активные советы ИИ</h3>
+                        <span class="text-[11px] text-zinc-500 tabular">${exComments.length + dateComments.length}</span>
+                    </div>
+                    ${activeNotesHtml}
+                </div>
+
+                <!-- Очистка данных -->
+                <div class="pt-1 pb-2 text-center">
+                    <button onclick="askClearAllData()" class="px-4 py-2.5 rounded-xl text-xs font-medium text-[#FDA4AF]/80 hover:text-[#FDA4AF] btn-press">
+                        Очистить все локальные данные
+                    </button>
+                </div>
+            `;
+        }
+
+        function copyAllForAi() {
+            copyToClipboard(buildFullAiSyncPrompt(), 'Данные и промпт скопированы — вставьте в чат с ИИ');
+        }
+
+        function deleteExAiComment(key) {
+            delete state.aiData.exerciseComments[key];
+            saveState();
+            render();
+            toast('Совет удалён');
+        }
+
+        function deleteDateAiComment(iso) {
+            delete state.aiData.dateComments[iso];
+            saveState();
+            render();
+            toast('Комментарий удалён');
+        }
+
+        function openJsonImportModal() {
+            openModal('Импорт JSON', `
+                <div class="space-y-3">
+                    <p class="text-xs text-zinc-400 leading-relaxed">
+                        Вставьте JSON с программой, комментариями нейросети или полным бэкапом:
+                    </p>
+                    <textarea id="modal-json-input" rows="7" placeholder='{ "programs": [...], "ai_comments": [...] }'
+                        class="w-full obsidian-sub p-3 text-xs font-mono text-[#6EE7B7] focus:outline-none focus:border-[#A78BFA]/60"></textarea>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="submitModalJson()" class="py-3.5 rounded-[14px] bg-[#6EE7B7] text-[#0B0B0E] font-semibold text-xs sm:text-sm btn-press">
+                            Применить
+                        </button>
+                        <label class="py-3.5 rounded-[14px] bg-white/[0.06] border border-white/[0.08] text-white font-medium text-xs sm:text-sm flex items-center justify-center cursor-pointer btn-press">
+                            <span>Файл .json</span>
+                            <input type="file" accept=".json,application/json" onchange="handleJsonFileUpload(event, true)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+            `);
+        }
+
+        function submitModalJson() {
+            const raw = document.getElementById('modal-json-input').value.trim();
+            if (!raw) return toast('Вставьте текст JSON', 'error');
+            if (parseAndApplySmartJson(raw)) closeModal();
+        }
+
+        function applyInlineJson() {
+            const area = document.getElementById('inline-ai-json');
+            const raw = area?.value.trim();
+            if (!raw) return toast('Вставьте ответ от ИИ в текстовое поле', 'error');
+            if (parseAndApplySmartJson(raw)) {
+                area.value = '';
+            }
+        }
+
+        function handleJsonFileUpload(e, shouldCloseModal = false) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if (parseAndApplySmartJson(ev.target.result) && shouldCloseModal) {
+                    closeModal();
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        /**
+         * Умный парсер JSON: очищает ```json, сопоставляет упражнения по ID и названию,
+         * применяет советы ИИ, обновляет веса/подходы и импортирует программы/бэкапы.
+         */
+        function parseAndApplySmartJson(rawText) {
+            try {
+                let cleaned = rawText.trim();
+                const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+                if (fenceMatch) cleaned = fenceMatch[1].trim();
+
+                const data = JSON.parse(cleaned);
+                const appliedSummary = [];
+
+                // 1. Импорт истории тренировок (если загружается полный бэкап)
+                if (Array.isArray(data.workouts)) {
+                    const existingIds = new Set(state.workouts.map(w => w.id));
+                    const freshWorkouts = data.workouts.filter(w => !existingIds.has(w.id));
+                    if (freshWorkouts.length > 0) {
+                        state.workouts = [...state.workouts, ...freshWorkouts];
+                        appliedSummary.push(`тренировок: +${freshWorkouts.length}`);
+                    }
+                }
+
+                // 2. Восстановление заметок из полного бэкапа
+                if (data.current_ai_notes) {
+                    if (data.current_ai_notes.generalComment) {
+                        state.aiData.generalComment = data.current_ai_notes.generalComment;
+                    }
+                    Object.assign(state.aiData.dateComments, data.current_ai_notes.dateComments || {});
+                    Object.assign(state.aiData.exerciseComments, data.current_ai_notes.exerciseComments || {});
+                }
+
+                // 3. Импорт новых тренировочных дней (programs)
+                if (Array.isArray(data.programs) && data.programs.length > 0) {
+                    const existingDayIds = new Set(state.programs.map(p => p.id));
+                    const normalizedDays = data.programs
+                        .filter(p => !p.id || !existingDayIds.has(p.id))
+                        .map((p, idx) => ({
+                            id: p.id || ('day_' + Date.now() + '_' + idx),
+                            name: p.name || `День ${state.programs.length + idx + 1}`,
+                            exercises: Array.isArray(p.exercises) ? p.exercises.map((ex, j) => ({
+                                id: ex.id || ('pex_' + Date.now() + '_' + idx + '_' + j),
+                                name: ex.name || 'Упражнение',
+                                muscle: MUSCLE_LIST.includes(ex.muscle) ? ex.muscle : 'Ягодицы',
+                                targetSets: parseInt(ex.targetSets) || 3,
+                                targetReps: parseInt(ex.targetReps) || 12,
+                                targetWeight: ex.targetWeight || ''
+                            })) : []
+                        }));
+
+                    if (normalizedDays.length > 0) {
+                        state.programs = [...state.programs, ...normalizedDays];
+                        if (!state.selectedDayId || state.selectedDayId === 'free') {
+                            state.selectedDayId = normalizedDays[0].id;
+                        }
+                        appliedSummary.push(`дней программы: +${normalizedDays.length}`);
+                    }
+                }
+
+                // 4. Общий комментарий ИИ
+                if (typeof data.general_comment === 'string' && data.general_comment.trim()) {
+                    state.aiData.generalComment = data.general_comment.trim();
+                    appliedSummary.push('общий вывод ИИ');
+                }
+
+                // 5. Единый массив ai_comments (поддержка и упражнений, и дат) + обратная совместимость с exercise_comments / date_comments
+                let exTipsCount = 0;
+                let dateTipsCount = 0;
+
+                const unifiedComments = [
+                    ...(Array.isArray(data.ai_comments) ? data.ai_comments : []),
+                    ...(Array.isArray(data.exercise_comments) ? data.exercise_comments : []),
+                    ...(Array.isArray(data.date_comments) ? data.date_comments : [])
+                ];
+
+                unifiedComments.forEach(item => {
+                    const text = (item?.comment || '').trim();
+                    if (!text) return;
+
+                    const hasEx = Boolean(item.exercise_id || item.exercise_name || item.name);
+                    if (hasEx) {
+                        const label = (item.exercise_name || item.name || item.exercise_id).trim();
+                        if (item.exercise_id) {
+                            state.aiData.exerciseComments[item.exercise_id] = { label, comment: text };
+                        }
+                        if (item.exercise_name || item.name) {
+                            state.aiData.exerciseComments[normKey(item.exercise_name || item.name)] = { label, comment: text };
+                        }
+                        exTipsCount++;
+                    } else if (item.date) {
+                        state.aiData.dateComments[item.date.trim()] = text;
+                        dateTipsCount++;
+                    }
+                });
+
+                if (exTipsCount > 0) appliedSummary.push(`советов к упр.: ${exTipsCount}`);
+                if (dateTipsCount > 0) appliedSummary.push(`заметок к датам: ${dateTipsCount}`);
+
+                // 6. Автообновление весов, подходов, повторений и замен в программе (program_updates)
+                if (Array.isArray(data.program_updates)) {
+                    let updatesCount = 0;
+                    data.program_updates.forEach(upd => {
+                        const dayId = upd.program_day_id;
+                        const dayName = normKey(upd.day_name);
+                        const exId = upd.exercise_id;
+                        const exName = normKey(upd.exercise_name);
+
+                        state.programs.forEach(prog => {
+                            const dayOk = (dayId && prog.id === dayId) ||
+                                          (dayName && normKey(prog.name) === dayName) ||
+                                          (!dayId && !dayName);
+                            if (!dayOk) return;
+
+                            prog.exercises.forEach(ex => {
+                                const exOk = (exId && ex.id === exId) || (exName && normKey(ex.name) === exName);
+                                if (!exOk) return;
+
+                                if (upd.new_weight !== undefined && upd.new_weight !== null && upd.new_weight !== '') {
+                                    ex.targetWeight = parseFloat(upd.new_weight);
+                                }
+                                if (upd.new_sets) ex.targetSets = parseInt(upd.new_sets);
+                                if (upd.new_reps) ex.targetReps = parseInt(upd.new_reps);
+                                if (upd.replace_with_name && upd.replace_with_name.trim()) {
+                                    ex.name = upd.replace_with_name.trim();
+                                }
+                                delete state.drafts[prog.id];
+                                updatesCount++;
+                            });
+                        });
+                    });
+                    if (updatesCount > 0) appliedSummary.push(`обновлений плана: ${updatesCount}`);
+                }
+
+                if (appliedSummary.length === 0) {
+                    toast('В JSON не найдено подходящих данных для применения', 'error');
+                    return false;
+                }
+
+                saveState();
+                render();
+                toast(`Успешно применено: ${appliedSummary.join(', ')}`);
+                return true;
+            } catch (err) {
+                toast('Некорректный формат JSON. Проверьте скобки и кавычки', 'error');
+                return false;
+            }
+        }
+
+        function downloadJsonBackup() {
+            const payload = {
+                app: 'VelvetLog',
+                exportedAt: new Date().toISOString(),
+                programs: state.programs,
+                workouts: state.workouts,
+                current_ai_notes: state.aiData
+            };
+            triggerFileDownload(
+                JSON.stringify(payload, null, 2),
+                `velvetlog_backup_${todayISO()}.json`,
+                'application/json'
+            );
+            toast('Полный бэкап скачан');
+        }
+
+        function downloadCsvExport() {
+            const rows = [['Дата', 'Тренировка', 'Группа мышц', 'Упражнение', 'Подход', 'Вес (кг)', 'Повторения', 'Тоннаж (кг)', 'Заметка']];
+            state.workouts.forEach(w => {
+                w.entries.forEach(e => {
+                    e.sets.forEach((s, idx) => {
+                        const ton = (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0);
+                        rows.push([
+                            w.date,
+                            w.dayName,
+                            e.muscle,
+                            e.name,
+                            idx + 1,
+                            s.weight,
+                            s.reps,
+                            ton,
+                            w.feelingNote || ''
+                        ]);
+                    });
+                });
+            });
+
+            const csvContent = '\uFEFF' + rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+            triggerFileDownload(csvContent, `velvetlog_workouts_${todayISO()}.csv`, 'text/csv;charset=utf-8;');
+            toast('CSV-файл экспортирован');
+        }
+
+        function triggerFileDownload(content, filename, mime) {
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function askClearAllData() {
+            openModal('Очистить все данные?', `
+                <div class="space-y-4">
+                    <p class="text-xs text-zinc-400 leading-relaxed">
+                        Будут удалены все программы, история тренировок и советы нейросети с этого устройства. Рекомендуем сначала скачать бэкап.
+                    </p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="closeModal()" class="py-3 rounded-[14px] bg-white/[0.06] text-white text-xs font-medium btn-press">Отмена</button>
+                        <button onclick="confirmClearAllData()" class="py-3 rounded-[14px] bg-[#FDA4AF] text-[#0B0B0E] text-xs font-semibold btn-press">Удалить всё</button>
+                    </div>
+                </div>
+            `);
+        }
+
+        function confirmClearAllData() {
+            localStorage.removeItem(STORAGE_KEY);
+            state.programs = [];
+            state.workouts = [];
+            state.aiData = { generalComment: '', dateComments: {}, exerciseComments: {} };
+            state.drafts = {};
+            state.selectedDayId = null;
+            state.sessionStartedAt = null;
+            stopRestTimer();
+            closeModal();
+            setTab('workout');
+            toast('Все локальные данные очищены');
+        }
+
+        // Инициализация при запуске
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            render();
+        });
+    </script>
+</body>
+</html>
